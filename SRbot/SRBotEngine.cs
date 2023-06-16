@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Security.Policy;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -16,11 +17,12 @@ namespace SRbot
 {
 	public static class SRBotEngine
 	{
+		public static object EnergyLock=new object();
 		static Queue<Message> RecvGroupMsgQueue =new Queue<Message>();
 		static string url = @"http://127.0.0.1";
+		public static HttpListener listener = new HttpListener();
 		public static void RequestGetMsg()
 		{
-			HttpListener listener = new HttpListener();
 			listener.Prefixes.Add(url + @":5701/");
 			listener.Start();
 			while (true)
@@ -60,8 +62,38 @@ namespace SRbot
 				if(RecvGroupMsgQueue.Count > 0)
 				{
 					Message tmp=RecvGroupMsgQueue.Dequeue();
-					if (tmp.message.Contains("喵"))
-						SendGroupMsg(tmp.group_id, "nya");
+					bool Reply=true;
+					if(tmp.sender.user_id==1418780411)
+						Reply=false;
+					if(BotManagement.GetPermission(tmp.sender.user_id)!=null)
+						if(BotManagement.GetPermission(tmp.sender.user_id).Blacklisted)
+							Reply=false;
+					BotManagement.WriteUserConfig();
+					if (BotManagement.GetPermission(tmp.sender.user_id) == null)
+						BotManagement.CreateDefault(tmp.sender.user_id);
+					if(Reply)
+					{
+						if(tmp.message==".rand")
+						{
+							if (BotManagement.EnergyCast(tmp.sender.user_id, 1))
+								ThreadPool.QueueUserWorkItem(new WaitCallback(BotCommands.Rand), tmp.group_id);
+						}
+						else if(tmp.message.Contains("ljyys"))
+						{
+							if (BotManagement.EnergyCast(tmp.sender.user_id, 3))
+								ThreadPool.QueueUserWorkItem(new WaitCallback(BotCommands.jrz), tmp.group_id);
+						}
+						else if(tmp.message.Contains("🐱") && (DateTimeOffset.Now.ToUnixTimeSeconds() - BotCommands.LastMeow >= 30))
+						{
+							if(BotManagement.EnergyCast(tmp.sender.user_id,1))
+								ThreadPool.QueueUserWorkItem(new WaitCallback(BotCommands.meow), tmp.group_id);
+						}
+						else if(tmp.message=="tyt"&&tmp.sender.user_id!= 2135798420)
+						{
+							if (BotManagement.EnergyCast(tmp.sender.user_id, 1))
+								ThreadPool.QueueUserWorkItem(new WaitCallback(BotCommands.tyt), tmp.group_id);
+						}
+					}
 				}
 				Thread.Sleep(100);
 			}
